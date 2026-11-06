@@ -247,17 +247,15 @@ SELECT
 
 FROM reservations AS res
 
-         JOIN users AS u
-              ON res.user_id = u.user_id
+JOIN users AS u
+    ON res.user_id = u.user_id
 
-         JOIN resources AS r
-              ON res.resource_id = r.resource_id
+JOIN resources AS r
+    ON res.resource_id = r.resource_id
 
 WHERE
     res.status = 'active'
-
-  AND res.start_datetime >=
-      '2026-10-02 00:00:00'
+    AND res.start_datetime > NOW()
 
 ORDER BY
     res.start_datetime;
