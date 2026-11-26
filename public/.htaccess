@@ -1,0 +1,4 @@
+# Database exports and source archives are never public web assets.
+<FilesMatch "(?i)\.(sql|zip|csv)$">
+    Require all denied
+</FilesMatch>

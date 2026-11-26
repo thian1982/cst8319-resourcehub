@@ -102,6 +102,8 @@ CREATE TABLE resources (
                            name VARCHAR(150) NOT NULL,
 
                            description TEXT NULL,
+  
+                           image_path VARCHAR(255) NULL,
 
                            location VARCHAR(150) NOT NULL,
 

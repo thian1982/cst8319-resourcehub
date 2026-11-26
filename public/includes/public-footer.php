@@ -1,0 +1,1 @@
+<footer class="public-footer py-4"><div class="container text-center text-secondary"><small>&copy; <?= date('Y') ?> ResourceHub. Equipment &amp; Resources Reservation System.</small></div></footer>
