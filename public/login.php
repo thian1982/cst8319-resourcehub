@@ -20,15 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Enter a valid email address and password.';
     } else {
         try {
-            $stmt = rh_pdo()->prepare('SELECT user_id, password_hash, role, account_status FROM users WHERE email = :email LIMIT 1');
-            $stmt->execute(['email' => $email]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($user && $user['account_status'] === 'active' && in_array($user['role'], ['user', 'admin'], true) && password_verify($password, (string) $user['password_hash'])) {
-                session_regenerate_id(true);
-                $_SESSION['user_id'] = (int) $user['user_id'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-                header('Location: ' . ($user['role'] === 'admin' ? '/admin/admin-dashboard.php' : '/'), true, 303);
+            $user = rh_auth()->login($email, $password);
+            if ($user !== null) {
+                header('Location: ' . ($user->isAdmin() ? '/admin/admin-dashboard.php' : '/'), true, 303);
                 exit;
             }
             $error = 'Invalid credentials or inactive account.';

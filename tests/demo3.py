@@ -13,6 +13,7 @@ import subprocess as sp
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from database_checks import check_fixture_install
@@ -167,6 +168,20 @@ def main():
         catalogue = page(users[0],bases[0],"/resources.php?category=Projectors&q=Fixture")
         check("catalogue receives homepage query and category",
               'value="Fixture"' in catalogue and 'value="Projectors" selected' in catalogue and 'id="statusSelect"' in catalogue)
+        def status_code(opener, base, path):
+            try:
+                with opener.open(base + path, timeout=15) as response:
+                    return response.status
+            except urllib.error.HTTPError as error:
+                return error.code
+        check("visitor gets 403 on an admin page", status_code(client(), bases[0], "/admin/admin-dashboard.php") == 403)
+        check("regular user gets 403 on an admin page", status_code(users[0], bases[0], "/admin/admin-users.php") == 403)
+        third = client()
+        third_login = page(third, bases[0], "/login.php")
+        signed_in = page(third, bases[0], "/login.php", {"email":"u1@example.test","password":"fixture-pass",
+                                                        "csrf_token":token(third_login)})
+        after_logout = page(third, bases[0], "/logout.php", {"csrf_token":token(signed_in)})
+        check("logout ends the session", "Sign In" in after_logout and "Logout" not in page(third, bases[0], "/"))
         sql(f"USE cst8319; INSERT INTO users(full_name,email,password_hash,role) VALUES('Admin','admin@example.test','{hashed}','admin')")
         admin=client()
         page(admin,bases[0],"/login.php",dict(csrf_token=token(page(admin,bases[0],"/login.php")),
