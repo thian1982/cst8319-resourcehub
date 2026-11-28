@@ -28,18 +28,16 @@ function rh_csrf(): string {
 function rh_csrf_valid($token): bool {
     return is_string($token) && hash_equals(rh_csrf(), $token);
 }
+function rh_auth(): AuthService {
+    static $auth = null;
+    if ($auth === null) { $auth = new AuthService(rh_pdo()); }
+    return $auth;
+}
+// Pages still use arrays for the signed-in user, so this returns the user as an array.
 function rh_current_user(): ?array {
-    if (empty($_SESSION['user_id']) || !is_numeric($_SESSION['user_id'])) { return null; }
     try {
-        $stmt = rh_pdo()->prepare('SELECT user_id, full_name, email, role, account_status FROM users WHERE user_id = :id LIMIT 1');
-        $stmt->execute(['id' => (int) $_SESSION['user_id']]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$user || $user['account_status'] !== 'active' || !in_array($user['role'], ['user', 'admin'], true)) {
-            unset($_SESSION['user_id'], $_SESSION['role']);
-            return null;
-        }
-        $_SESSION['role'] = $user['role'];
-        return $user;
+        $user = rh_auth()->currentUser();
+        return $user ? $user->toArray() : null;
     } catch (Throwable $e) {
         error_log('ResourceHub auth lookup failed: ' . $e->getMessage());
         return null; // fail closed
