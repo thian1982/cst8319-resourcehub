@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+// Model, repository and service classes in src/ are loaded on demand.
+require_once dirname(__DIR__, 2) . '/src/bootstrap.php';
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     if (headers_sent()) { throw new RuntimeException('Cannot start session after output.'); }
     ini_set('session.use_strict_mode', '1');
