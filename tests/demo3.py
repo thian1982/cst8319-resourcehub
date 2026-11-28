@@ -102,6 +102,7 @@ def main():
                 dest = tmp / src.relative_to(ROOT)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(src, dest)
+        shutil.copytree(ROOT/"src", tmp/"src")
         (tmp/"config").mkdir()
         shutil.copyfile(ROOT/"config/database.php", tmp/"config/database.php")
         (tmp/"config/database.local.php").write_text(
@@ -196,6 +197,7 @@ def main():
         rid=sql("SELECT reservation_id FROM cst8319.reservations WHERE resource_id=2")
         admin_action("reservations",action="cancel",reservation_id=rid)
         check("admin cancels booking",count("resource_id=2 AND status='cancelled'")==1)
+
 
 
 if __name__ == "__main__":
