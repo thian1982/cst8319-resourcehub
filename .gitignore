@@ -62,3 +62,6 @@ Thumbs.db
 # ------------------------------------------------------------
 
 Credentials.docx
+
+# Python test cache
+__pycache__/

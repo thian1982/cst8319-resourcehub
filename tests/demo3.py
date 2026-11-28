@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from database_checks import check_fixture_install
 
 ROOT = Path(__file__).resolve().parents[1]
 XAMPP = Path(os.environ.get("XAMPP_ROOT", "C:/xampp"))
@@ -89,6 +90,7 @@ def main():
 
         # Verify the server identity BEFORE any DDL, even though we use a random port/password.
         check("database belongs to this temporary directory", Path(sql("SELECT @@datadir")).resolve() == data.resolve())
+        check_fixture_install(ROOT, sql, check)
         sql("CREATE DATABASE cst8319;" + (ROOT/"database/schema.sql").read_text())
         hashed = sp.check_output([PHP, "-n", "-r", "echo password_hash('fixture-pass', PASSWORD_DEFAULT);"], text=True)
         sql("USE cst8319; INSERT INTO categories(name) VALUES ('Projectors');"
