@@ -28,35 +28,22 @@ try {
             if ($start <= date('Y-m-d H:i:s')) {
                 throw new DomainException('New reservations must start in the future.');
             }
-            $pdo->beginTransaction();
-            // Lock the resource row to serialize booking attempts for this resource.
-            $resourceStmt = $pdo->prepare('SELECT status FROM resources WHERE resource_id = ? FOR UPDATE');
-            $resourceStmt->execute([$resourceId]);
-            $resource = $resourceStmt->fetch();
-            if (!$resource || $resource['status'] !== 'available') {
-                throw new DomainException('This resource is not available for new reservations.');
+            try {
+                (new ReservationService($pdo))->createReservation($userId, $resourceId,
+                    new DateTimeImmutable($start), new DateTimeImmutable($end), true);
+            } catch (BookingException $bookingError) {
+                throw new DomainException(match ($bookingError->getReason()) {
+                    BookingException::RESOURCE_UNAVAILABLE => 'This resource is not available for new reservations.',
+                    BookingException::INACTIVE_USER => 'Select an active user account.',
+                    default => 'This resource already has an overlapping active reservation.',
+                });
             }
-            $userStmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ? AND account_status = 'active' LIMIT 1");
-            $userStmt->execute([$userId]);
-            if (!$userStmt->fetch()) {
-                throw new DomainException('Select an active user account.');
-            }
-            $overlap = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE resource_id = ? AND status = 'active' AND start_datetime < ? AND end_datetime > ?");
-            $overlap->execute([$resourceId, $end, $start]);
-            if ((int)$overlap->fetchColumn() > 0) {
-                throw new DomainException('This resource already has an overlapping active reservation.');
-            }
-            $insert = $pdo->prepare("INSERT INTO reservations (user_id, resource_id, start_datetime, end_datetime, status) VALUES (?, ?, ?, ?, 'active')");
-            $insert->execute([$userId, $resourceId, $start, $end]);
-            $pdo->commit();
             header('Location: /admin/admin-reservations.php?result=created', true, 303);
             exit;
         } elseif ($action === 'cancel') {
             $id = filter_var($_POST['reservation_id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
             if (!$id) { throw new DomainException('Invalid reservation.'); }
-            $update = $pdo->prepare("UPDATE reservations SET status = 'cancelled', cancelled_at = NOW() WHERE reservation_id = ? AND status = 'active'");
-            $update->execute([$id]);
-            if ($update->rowCount() === 0) { throw new DomainException('Only active reservations can be cancelled.'); }
+            if (!(new ReservationService($pdo))->cancelAsAdmin($id)) { throw new DomainException('Only active reservations can be cancelled.'); }
             header('Location: /admin/admin-reservations.php?result=cancelled', true, 303);
             exit;
         } else {

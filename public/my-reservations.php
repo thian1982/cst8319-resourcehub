@@ -15,10 +15,8 @@ if ($user !== null) {
             $error = 'Invalid cancellation request.';
         } else {
             try {
-                $pdo = rh_pdo();
-                $stmt = $pdo->prepare("UPDATE reservations SET status = 'cancelled', cancelled_at = NOW() WHERE reservation_id = :reservation_id AND user_id = :user_id AND status = 'active' AND start_datetime > NOW()");
-                $stmt->execute(['reservation_id' => (int)$_POST['reservation_id'], 'user_id' => (int)$user['user_id']]);
-                if ($stmt->rowCount() === 1) {
+                $reservationService = new ReservationService(rh_pdo());
+                if ($reservationService->cancelForUser((int)$_POST['reservation_id'], (int)$user['user_id'])) {
                     header('Location: /my-reservations.php?cancelled=1', true, 303);
                     exit;
                 }

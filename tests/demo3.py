@@ -200,6 +200,31 @@ def main():
         admin_action("reservations",action="cancel",reservation_id=rid)
         check("admin cancels booking",count("resource_id=2 AND status='cancelled'")==1)
 
+        def admin_book(start, end):
+            return admin_action("reservations",action="create",resource_id=1,user_id=1,
+                                start_datetime=day+"T"+start,end_datetime=day+"T"+end)
+        check("user holds slot before admin attempts overlap",
+              "Reservation confirmed." in book(1,"17:00","18:00"))
+        check("admin cannot overlap user booking",
+              "already has an overlapping active reservation" in admin_book("17:30","18:30")
+              and count(f"resource_id=1 AND start_datetime>='{day} 17:00' AND status='active'")==1)
+        check("admin can book immediately after user's slot",
+              "Reservation created successfully" in admin_book("18:00","19:00"))
+        check("user cannot overlap admin booking",
+              "already reserved" in book(1,"18:30","19:30")
+              and count(f"resource_id=1 AND start_datetime>='{day} 18:00' AND status='active'")==1)
+
+        # Admin runs on server 0; user 2 runs on server 1 with a different session.
+        cross_gate = threading.Barrier(2)
+        def cross_race(i):
+            cross_gate.wait(timeout=5)
+            return admin_book("20:00","21:00") if i == 0 else book(1,"20:00","21:00")
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            admin_reply, user_reply = pool.map(cross_race,[0,1])
+        check("admin/user race yields one winner, one conflict, and one stored booking",
+              (("Reservation created successfully" in admin_reply and "already reserved" in user_reply)
+               or ("already has an overlapping active reservation" in admin_reply and "Reservation confirmed." in user_reply))
+              and count(f"resource_id=1 AND start_datetime='{day} 20:00' AND status='active'")==1)
 
 
 if __name__ == "__main__":
