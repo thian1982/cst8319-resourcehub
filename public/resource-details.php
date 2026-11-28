@@ -34,45 +34,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bookingErrors[] = 'Invalid resource ID.';
     }
     if (!$bookingErrors) {
-        $bookingPdo = null;
         try {
-            $bookingPdo = rh_pdo();
-            if ($action === 'reserve') {
-                $bookingPdo->beginTransaction();
-            }
-            // Lock the resource row to serialize reservations made through this workflow.
-            $lock = $bookingPdo->prepare('SELECT status FROM resources WHERE resource_id = :id' . ($action === 'reserve' ? ' FOR UPDATE' : ''));
-            $lock->execute(['id' => $postedId]);
-            $lockedStatus = $lock->fetchColumn();
-            if ($lockedStatus !== 'available') {
-                $bookingErrors[] = 'This resource is not currently available for reservation.';
-            } else {
-                $conflicts = $bookingPdo->prepare("SELECT COUNT(*) FROM reservations WHERE resource_id = :id AND status = 'active' AND start_datetime < :end_time AND end_datetime > :start_time");
-                $conflicts->execute(['id' => $postedId, 'end_time' => $end->format('Y-m-d H:i:s'), 'start_time' => $start->format('Y-m-d H:i:s')]);
-                if ((int) $conflicts->fetchColumn() > 0) {
+            $reservationService = new ReservationService(rh_pdo());
+            if ($action === 'check') {
+                $result = $reservationService->checkAvailability($postedId, $start, $end);
+                if ($result === 'unavailable') {
+                    $bookingErrors[] = 'This resource is not currently available for reservation.';
+                } elseif ($result === 'conflict') {
                     $bookingErrors[] = 'This resource is already reserved during the selected period. Choose different dates or times.';
                 } else {
-                    if ($action === 'check') {
-                        $availabilityResult = 'Available! No conflicting active reservations were found for this period. ' . ($bookingUser ? 'Select Reserve Now to book it.' : 'Log in to reserve it.');
-                    } else {
-                    $create = $bookingPdo->prepare("INSERT INTO reservations (user_id, resource_id, start_datetime, end_datetime, status) VALUES (:user_id, :resource_id, :start_time, :end_time, 'active')");
-                    $create->execute(['user_id' => (int) $bookingUser['user_id'], 'resource_id' => $postedId, 'start_time' => $start->format('Y-m-d H:i:s'), 'end_time' => $end->format('Y-m-d H:i:s')]);
-                    }
+                    $availabilityResult = 'Available! No conflicting active reservations were found for this period. ' . ($bookingUser ? 'Select Reserve Now to book it.' : 'Log in to reserve it.');
                 }
+            } else {
+                $reservationService->createReservation((int) $bookingUser['user_id'], $postedId, $start, $end);
+                header('Location: /resource-details.php?id=' . $postedId . '&booked=1', true, 303);
+                exit;
             }
-            if ($action === 'reserve') {
-                if ($bookingErrors) {
-                    $bookingPdo->rollBack();
-                } else {
-                    $bookingPdo->commit();
-                    header('Location: /resource-details.php?id=' . $postedId . '&booked=1', true, 303);
-                    exit;
-                }
-            }
+        } catch (BookingException $exception) {
+            $bookingErrors[] = $exception->getReason() === BookingException::TIME_CONFLICT
+                ? 'This resource is already reserved during the selected period. Choose different dates or times.'
+                : 'This resource is not currently available for reservation.';
         } catch (Throwable $exception) {
-            if ($bookingPdo instanceof PDO && $bookingPdo->inTransaction()) {
-                $bookingPdo->rollBack();
-            }
             error_log('ResourceHub booking failed: ' . $exception->getMessage());
             $bookingErrors[] = 'The reservation could not be saved. Please try again.';
         }
